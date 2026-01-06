@@ -1,7 +1,7 @@
 {
   "name": "vite-plugin-ant-design-icons-svg-replace",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "packageManager": "pnpm@9.14.2",
   "description": "Replace Ant Design Icons SVG with custom SVG",
   "author": "nianqin",

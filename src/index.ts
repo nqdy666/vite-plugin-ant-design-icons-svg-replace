@@ -117,7 +117,6 @@ function VitePluginVitePluginAntDesignIconsSvgReplace(options: VitePluginAntDesi
 
   return {
     name: `vite-plugin-ant-design-icons-svg-replace:${i++}`,
-    apply: 'serve',
     config(c: any) {
       if (!enable)
         return

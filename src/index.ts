@@ -1,8 +1,24 @@
 import type { Plugin } from 'vite'
 import fs from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import process from 'node:process'
 import { normalizePath } from 'vite'
+
+/**
+ * 从项目根目录（process.cwd()）解析 Vite 主版本号
+ * 不能用 import { version } from 'vite'，因为 Node 会从插件自身目录解析到插件 devDeps 的 Vite，
+ * 而非消费项目的 Vite 版本
+ */
+function getViteMajorVersion(): number {
+  try {
+    const projectRequire = createRequire(path.join(process.cwd(), 'noop.js'))
+    return Number.parseInt(projectRequire('vite/package.json').version.split('.')[0])
+  }
+  catch {
+    return 5 // fallback: 按 Vite 5/6 行为处理
+  }
+}
 
 export interface IconReplacement {
   name: string // e.g., 'DownOutlined' or 'ProfileTwoTone'
@@ -165,6 +181,29 @@ export default ${iconName};
  * 无法通过 optimizeDeps.exclude 将其挪到运行时（项目根 node_modules 找不到包），
  * 所以必须在 esbuild bundle 内部完成替换。
  */
+function createRolldownReplacePlugin(replacementMap: Map<string, IconReplacement>, log: boolean) {
+  const replaced = new Set<string>()
+  return {
+    name: 'vite-plugin-ant-design-icons-svg-replace:rolldown',
+    load(id: string) {
+      const normalized = normalizePath(id)
+      const match = normalized.match(ICON_FILE_REGEX)
+      if (!match)
+        return null
+      const iconName = match[1]
+      const replacement = replacementMap.get(iconName)
+      if (!replacement)
+        return null
+
+      if (log && !replaced.has(iconName)) {
+        replaced.add(iconName)
+        console.log(`[replace-antd-icons] (prebundle) replaced ${iconName}`)
+      }
+      return generateReplacementCode(iconName, replacement)
+    },
+  }
+}
+
 function createEsbuildReplacePlugin(replacementMap: Map<string, IconReplacement>, log: boolean) {
   const replaced = new Set<string>()
   return {
@@ -227,9 +266,30 @@ function VitePluginVitePluginAntDesignIconsSvgReplace(options: VitePluginAntDesi
         c.server.watch = {}
       c.server.watch.disableGlobbing = false
 
-      // 关键：通过 esbuild 插件在预打包阶段完成替换
+      // 关键：通过 esbuild/rolldown 插件在预打包阶段完成替换
       // 这样 npm/pnpm/yarn 全部都能命中，不再依赖 optimizeDeps.exclude
       // （pnpm 严格模式下 @ant-design/icons-svg 不在项目根 node_modules，exclude 反而会让 Vite 解析失败）
+      const viteMajorVersion = getViteMajorVersion()
+      if (log) {
+        console.log(`[replace-antd-icons] Detected Vite major version: ${viteMajorVersion}`)
+      }
+      if (viteMajorVersion >= 7) {
+        // Vite 7+ 使用 Rolldown 进行依赖预打包
+        const existingRolldownPlugins = c.optimizeDeps?.rolldownOptions?.plugins ?? []
+        return {
+          optimizeDeps: {
+            ...c.optimizeDeps,
+            rolldownOptions: {
+              ...(c.optimizeDeps?.rolldownOptions ?? {}),
+              plugins: [
+                ...existingRolldownPlugins,
+                createRolldownReplacePlugin(replacementMap, log),
+              ],
+            },
+          },
+        }
+      }
+      // Vite 6 使用 esbuild 进行依赖预打包
       const existingEsbuildPlugins = c.optimizeDeps?.esbuildOptions?.plugins ?? []
       return {
         optimizeDeps: {

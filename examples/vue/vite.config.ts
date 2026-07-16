@@ -11,6 +11,7 @@ export default defineConfig({
     vue(),
     VitePluginAntDesignIconsSvgReplace({
       configPath: 'customAntdIcon.json',
+      log: true,
       // replacements: [
       //   {
       //     name: 'HomeOutlined',

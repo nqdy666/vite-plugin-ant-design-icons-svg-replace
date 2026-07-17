@@ -278,7 +278,6 @@ function VitePluginVitePluginAntDesignIconsSvgReplace(options: VitePluginAntDesi
         const existingRolldownPlugins = c.optimizeDeps?.rolldownOptions?.plugins ?? []
         return {
           optimizeDeps: {
-            ...c.optimizeDeps,
             rolldownOptions: {
               ...(c.optimizeDeps?.rolldownOptions ?? {}),
               plugins: [
